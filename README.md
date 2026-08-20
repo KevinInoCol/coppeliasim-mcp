@@ -11,6 +11,11 @@ difference from other CoppeliaSim MCP servers. See [Security](#security).
 Tool names are Spanish by default, with optional English and Portuguese
 aliases — see [Tool name languages](#tool-name-languages).
 
+> **Not affiliated with, endorsed by, or maintained by Coppelia Robotics AG.**
+> CoppeliaSim is a trademark of Coppelia Robotics AG. This is an independent
+> third-party integration; for the simulator itself, go to
+> [coppeliarobotics.com](https://www.coppeliarobotics.com/).
+
 ---
 
 ## Requirements
@@ -166,6 +171,11 @@ token stored in the repository secrets.
 
 MIT — see [LICENSE](LICENSE).
 
+The MIT license covers this server only. CoppeliaSim itself is licensed
+separately by Coppelia Robotics AG, and this package neither includes nor
+redistributes any part of it — it talks to a simulator you install and license
+yourself.
+
 ---
 
 # coppeliasim-mcp (español)
@@ -179,6 +189,11 @@ principal con los otros MCP de CoppeliaSim que circulan. El Lua de CoppeliaSim
 tiene acceso a `os` e `io`, así que una tool de ese tipo convierte cualquier
 prompt injection —por ejemplo, texto dentro de una escena `.ttt` de terceros—
 en ejecución de comandos sobre tu máquina.
+
+> **Sin afiliación, respaldo ni mantenimiento por parte de Coppelia Robotics AG.**
+> CoppeliaSim es una marca de Coppelia Robotics AG. Esto es una integración
+> independiente de terceros; para el simulador, ve a
+> [coppeliarobotics.com](https://www.coppeliarobotics.com/).
 
 ## Requisitos
 
@@ -252,3 +267,7 @@ verdad funciona. Mira [examples/README.md](examples/README.md).
 ## Licencia
 
 MIT — mira [LICENSE](LICENSE).
+
+La licencia MIT cubre solo este servidor. CoppeliaSim se licencia por separado
+con Coppelia Robotics AG, y este paquete no incluye ni redistribuye ninguna parte
+de él: habla con un simulador que instalas y licencias tú.

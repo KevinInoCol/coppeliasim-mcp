@@ -1,6 +1,11 @@
 """
 Servidor MCP para controlar CoppeliaSim 4.10 desde Claude Code vía ZMQ Remote API.
 
+Sin afiliación, respaldo ni mantenimiento por parte de Coppelia Robotics AG.
+CoppeliaSim es una marca de Coppelia Robotics AG. Esto es una integración
+independiente de terceros, que habla con un simulador instalado y licenciado
+aparte; no incluye ni redistribuye ninguna parte de él.
+
 Escrito contra la API real de CoppeliaSim 4.10.0 rev0 (cada llamada sim.* fue
 verificada contra Contents/Resources/manual/index/sim.json de la instalación
 local) y contra el SDK de MCP v2, donde FastMCP pasó a llamarse MCPServer.
