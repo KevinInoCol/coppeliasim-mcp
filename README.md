@@ -8,9 +8,8 @@ sensors back.
 **It deliberately does not expose arbitrary Lua execution.** That is the main
 difference from other CoppeliaSim MCP servers. See [Security](#security).
 
-> Tool names and descriptions are in Spanish (`crear_primitiva`,
-> `leer_sensor_proximidad`, …). The tools work the same regardless of the
-> language you talk to the model in — the model maps your request to them.
+Tool names are Spanish by default, with optional English and Portuguese
+aliases — see [Tool name languages](#tool-name-languages).
 
 ---
 
@@ -60,6 +59,7 @@ file in the working directory — see `.env.example`.
 | `COPPELIA_PUERTO` | `23000` | Its port. |
 | `COPPELIA_DIRECTORIO_ESCENAS` | current working directory | Only scenes under this folder can be loaded. |
 | `COPPELIA_MODO_LECTURA` | `0` | Set to `1` to disable every tool that changes the scene. |
+| `COPPELIA_IDIOMAS` | `es` | Tool-name aliases. `es,en,pt` or `todos` to add English and Portuguese. |
 
 ## Tools
 
@@ -77,6 +77,33 @@ file in the working directory — see `.env.example`.
 
 **Proximity sensors** — `crear_sensor_proximidad`, `leer_sensor_proximidad`,
 `comprobar_sensor_proximidad`
+
+## Tool name languages
+
+Tools are defined in Spanish (`crear_primitiva`, `leer_sensor_proximidad`, …).
+Setting `COPPELIA_IDIOMAS` registers aliases in English and Portuguese that
+point at the same functions — no duplicated logic, just more names in the
+catalog.
+
+| `COPPELIA_IDIOMAS` | Tools | Catalog size | Cost per request |
+|---|---|---|---|
+| `es` (default) | 23 | 15.0 KB | — |
+| `es,en` | 46 | 27.7 KB | ~3,300 tokens |
+| `es,en,pt` / `todos` | 69 | 40.5 KB | ~6,500 tokens |
+
+The catalog is sent to the model on **every** request, so aliases are off by
+default. Worth knowing before you turn them on: the model does not need
+translated names to understand you in another language. Tool names are
+identifiers, not user-facing text — ask for "move the cube forward" or "mova o
+cubo para frente" and it will reach for `fijar_posicion` either way. Aliases help
+when you want to read the catalog at a glance, or name a tool explicitly in a
+prompt.
+
+## Examples
+
+[`examples/carrito_diferencial.py`](examples/carrito_diferencial.py) builds a
+complete differential drive robot with obstacle avoidance and measures whether it
+actually works. See [examples/README.md](examples/README.md).
 
 ## Security
 
@@ -157,6 +184,31 @@ en el directorio de trabajo — mira `.env.example`.
 | `COPPELIA_PUERTO` | `23000` | Su puerto. |
 | `COPPELIA_DIRECTORIO_ESCENAS` | directorio de trabajo | Solo se pueden cargar escenas por debajo de esta carpeta. |
 | `COPPELIA_MODO_LECTURA` | `0` | A `1` deshabilita todas las tools que modifican la escena. |
+| `COPPELIA_IDIOMAS` | `es` | Alias de nombres de tools. `es,en,pt` o `todos` añade inglés y portugués. |
+
+## Idiomas de los nombres de tools
+
+Las tools se definen en español. `COPPELIA_IDIOMAS` registra alias en inglés y
+portugués sobre las mismas funciones: no duplica lógica, solo añade nombres.
+
+| `COPPELIA_IDIOMAS` | Tools | Catálogo | Coste por petición |
+|---|---|---|---|
+| `es` (por defecto) | 23 | 15.0 KB | — |
+| `es,en` | 46 | 27.7 KB | ~3.300 tokens |
+| `es,en,pt` / `todos` | 69 | 40.5 KB | ~6.500 tokens |
+
+El catálogo viaja en **cada** petición al modelo, así que los alias vienen
+apagados. Y conviene saber esto antes de encenderlos: el modelo no necesita los
+nombres traducidos para entenderte en otro idioma. Los nombres de tools son
+identificadores, no texto de cara al usuario — pídele "move the cube forward" o
+"mova o cubo para frente" y usará `fijar_posicion` igual. Los alias sirven para
+leer el catálogo de un vistazo, o para nombrar una tool explícitamente.
+
+## Ejemplos
+
+[`examples/carrito_diferencial.py`](examples/carrito_diferencial.py) construye un
+carrito de tracción diferencial completo con evasión de obstáculos, y mide si de
+verdad funciona. Mira [examples/README.md](examples/README.md).
 
 ## Cosas que ahorran horas de depuración
 

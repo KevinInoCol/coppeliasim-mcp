@@ -617,6 +617,170 @@ def crear_sensor_proximidad(
 
     return ejecutar(accion)
 
+# ─── Alias multilingües ──────────────────────────────────────────────────────
+
+# Las tools se definen en español, y aquí se registran alias en inglés y
+# portugués sobre las MISMAS funciones: un alias no duplica lógica, solo añade
+# un nombre más al catálogo.
+#
+# Por qué están apagados por defecto: el catálogo de tools viaja en el contexto
+# de cada petición al modelo, así que pasar de 23 a 69 tools triplica ese gasto
+# en todas las peticiones, no solo en las que usan CoppeliaSim. Y un catálogo
+# más grande también le da al modelo más ocasiones de elegir mal.
+#
+# Vale la pena saber que el modelo NO necesita el alias para entenderte en otro
+# idioma: los nombres de tools son identificadores, no texto de cara al usuario.
+# Puedes pedirle "move the cube forward" y usará `fijar_posicion` sin problema.
+# Los alias sirven para leer el catálogo de un vistazo, o para escribir prompts
+# que nombren la tool explícitamente.
+#
+# Se activan con COPPELIA_IDIOMAS, por ejemplo: es,en,pt
+
+IDIOMAS_DISPONIBLES = ("es", "en", "pt")
+
+ALIAS = {
+    "iniciar_simulacion": {
+        "en": ("start_simulation", "Start the simulation in CoppeliaSim."),
+        "pt": ("iniciar_simulacao", "Inicia a simulação no CoppeliaSim."),
+    },
+    "detener_simulacion": {
+        "en": ("stop_simulation", "Stop the simulation in CoppeliaSim."),
+        "pt": ("parar_simulacao", "Para a simulação no CoppeliaSim."),
+    },
+    "pausar_simulacion": {
+        "en": ("pause_simulation", "Pause the simulation in CoppeliaSim."),
+        "pt": ("pausar_simulacao", "Pausa a simulação no CoppeliaSim."),
+    },
+    "estado_simulacion": {
+        "en": ("simulation_state", "Report whether the simulation is stopped, running or paused."),
+        "pt": ("estado_simulacao", "Informa se a simulação está parada, rodando ou pausada."),
+    },
+    "tiempo_simulacion": {
+        "en": ("simulation_time", "Return the current simulation time, in seconds."),
+        "pt": ("tempo_simulacao", "Retorna o tempo atual de simulação, em segundos."),
+    },
+    "cargar_escena": {
+        "en": ("load_scene", "Load a .ttt or .xml scene from disk, restricted to the configured folder."),
+        "pt": ("carregar_cena", "Carrega uma cena .ttt ou .xml do disco, restrita à pasta configurada."),
+    },
+    "cerrar_escena": {
+        "en": ("close_scene", "Close the current scene."),
+        "pt": ("fechar_cena", "Fecha a cena atual."),
+    },
+    "listar_objetos": {
+        "en": ("list_objects", "List the objects in the current scene with their path and handle."),
+        "pt": ("listar_objetos_cena", "Lista os objetos da cena atual com seu caminho e handle."),
+    },
+    "obtener_posicion": {
+        "en": ("get_position", "Return an object's [x, y, z] position, in meters."),
+        "pt": ("obter_posicao", "Retorna a posição [x, y, z] de um objeto, em metros."),
+    },
+    "fijar_posicion": {
+        "en": ("set_position", "Move an object to position (x, y, z), in meters."),
+        "pt": ("definir_posicao", "Move um objeto para a posição (x, y, z), em metros."),
+    },
+    "obtener_orientacion": {
+        "en": ("get_orientation", "Return an object's Euler angles, in radians."),
+        "pt": ("obter_orientacao", "Retorna os ângulos de Euler de um objeto, em radianos."),
+    },
+    "fijar_orientacion": {
+        "en": ("set_orientation", "Set an object's orientation from Euler angles, in radians."),
+        "pt": ("definir_orientacao", "Define a orientação de um objeto por ângulos de Euler, em radianos."),
+    },
+    "eliminar_objeto": {
+        "en": ("delete_object", "Remove an object from the scene by its path."),
+        "pt": ("remover_objeto", "Remove um objeto da cena pelo seu caminho."),
+    },
+    "crear_primitiva": {
+        "en": ("create_primitive", "Create a primitive shape (cuboid, sphere, cylinder, cone, capsule, disc, torus)."),
+        "pt": ("criar_primitiva", "Cria uma forma primitiva (cubo, esfera, cilindro, cone, cápsula, disco, toro)."),
+    },
+    "emparentar_objeto": {
+        "en": ("set_parent", "Attach an object to another in the hierarchy, so they move together."),
+        "pt": ("vincular_objeto", "Vincula um objeto a outro na hierarquia, para que se movam juntos."),
+    },
+    "fijar_detectable": {
+        "en": ("set_detectable", "Mark or unmark an object as detectable by proximity sensors."),
+        "pt": ("definir_detectavel", "Marca ou desmarca um objeto como detectável por sensores de proximidade."),
+    },
+    "obtener_posicion_junta": {
+        "en": ("get_joint_position", "Return a joint's position, in radians or meters."),
+        "pt": ("obter_posicao_junta", "Retorna a posição de uma junta, em radianos ou metros."),
+    },
+    "fijar_objetivo_junta": {
+        "en": ("set_joint_target", "Set a joint's target position."),
+        "pt": ("definir_alvo_junta", "Define a posição alvo de uma junta."),
+    },
+    "fijar_velocidad_junta": {
+        "en": ("set_joint_velocity", "Set a joint's target velocity."),
+        "pt": ("definir_velocidade_junta", "Define a velocidade alvo de uma junta."),
+    },
+    "obtener_fuerza_junta": {
+        "en": ("get_joint_force", "Return the force or torque measured at a joint."),
+        "pt": ("obter_forca_junta", "Retorna a força ou torque medido em uma junta."),
+    },
+    "leer_sensor_proximidad": {
+        "en": ("read_proximity_sensor", "Read the simulator's last proximity sensor pass. Does not detect on its own."),
+        "pt": ("ler_sensor_proximidade", "Lê a última varredura do sensor feita pelo simulador. Não detecta por si só."),
+    },
+    "comprobar_sensor_proximidad": {
+        "en": ("check_proximity_sensor", "Detect right now with a proximity sensor, no simulation needed."),
+        "pt": ("verificar_sensor_proximidade", "Detecta agora com um sensor de proximidade, sem precisar de simulação."),
+    },
+    "crear_sensor_proximidad": {
+        "en": ("create_proximity_sensor", "Create a cone-shaped proximity sensor aimed forward (+X)."),
+        "pt": ("criar_sensor_proximidade", "Cria um sensor de proximidade cônico apontado para frente (+X)."),
+    },
+}
+
+
+def idiomas_pedidos():
+    """
+    Lee COPPELIA_IDIOMAS y devuelve los idiomas de alias a registrar.
+
+    'es' es el canónico y nunca genera alias. Acepta 'todos'/'all' como atajo.
+    Un idioma desconocido se ignora en silencio: no vale tumbar el servidor,
+    y encima antes de que el usuario pueda leer el error, por un typo en el .env.
+    """
+    crudo = os.getenv("COPPELIA_IDIOMAS", "es").strip().lower()
+    if crudo in ("todos", "all"):
+        pedidos = list(IDIOMAS_DISPONIBLES)
+    else:
+        pedidos = [parte.strip() for parte in crudo.split(",") if parte.strip()]
+    return [i for i in pedidos if i in IDIOMAS_DISPONIBLES and i != "es"]
+
+
+def registrar_alias():
+    """Registra los alias sobre las mismas funciones ya decoradas. Idempotente."""
+    idiomas = idiomas_pedidos()
+    if not idiomas:
+        return []
+
+    ocupados = set(ALIAS) | {
+        nombre for traducciones in ALIAS.values() for nombre, _ in traducciones.values()
+    } - {
+        nombre
+        for traducciones in ALIAS.values()
+        for idioma, (nombre, _) in traducciones.items()
+        if idioma in idiomas
+    }
+
+    registrados = []
+    for canonico, traducciones in ALIAS.items():
+        funcion = globals()[canonico]
+        for idioma in idiomas:
+            nombre, descripcion = traducciones[idioma]
+            if nombre in ocupados:      # colisión con un nombre ya expuesto
+                continue
+            mcp.tool(name=nombre, description=descripcion)(funcion)
+            ocupados.add(nombre)
+            registrados.append(nombre)
+    return registrados
+
+
+ALIAS_REGISTRADOS = registrar_alias()
+
+
 # ─── Arranque ────────────────────────────────────────────────────────────────
 
 def verificar_configuracion():
