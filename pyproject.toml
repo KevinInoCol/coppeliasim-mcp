@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "coppeliasim-mcp"
+version = "0.1.0"
+description = "MCP server to drive CoppeliaSim 4.10 from Claude Code and other MCP clients, without exposing arbitrary Lua execution"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [{ name = "Kevin Inofuente Colque" }]
+keywords = ["mcp", "coppeliasim", "robotics", "simulation", "claude", "zmq"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "mcp>=2.0.0,<3",
+    "coppeliasim-zmqremoteapi-client>=2.0.4",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+coppeliasim-mcp = "coppeliasim_mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/coppeliasim_mcp"]

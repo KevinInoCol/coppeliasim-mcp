@@ -1,0 +1,18 @@
+# Configuración local: nunca se publica, puede contener rutas personales
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# macOS
+.DS_Store
+
+# Herramientas
+.mcp.json
+.claude/
