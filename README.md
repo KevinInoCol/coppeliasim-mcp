@@ -17,7 +17,7 @@ aliases — see [Tool name languages](#tool-name-languages).
 
 - CoppeliaSim 4.10 running, with the **ZMQ remote API** add-on active. It ships
   enabled by default and listens on port 23000.
-- Python 3.9 or newer.
+- Python 3.10 or newer.
 
 ## Install
 
@@ -60,6 +60,7 @@ file in the working directory — see `.env.example`.
 | `COPPELIA_DIRECTORIO_ESCENAS` | current working directory | Only scenes under this folder can be loaded. |
 | `COPPELIA_MODO_LECTURA` | `0` | Set to `1` to disable every tool that changes the scene. |
 | `COPPELIA_IDIOMAS` | `es` | Tool-name aliases. `es,en,pt` or `todos` to add English and Portuguese. |
+| `COPPELIA_TIMEOUT` | `10` | Seconds to wait for a reply before giving up. |
 
 ## Tools
 
@@ -141,6 +142,26 @@ surface directly:
 - **Parenting does not rigidly attach two dynamic shapes.** Non-static shapes
   fall unless constrained by a joint or a force sensor.
 
+## Releasing
+
+Publishing runs on a tag push, through
+[`.github/workflows/publicar.yml`](.github/workflows/publicar.yml):
+
+```bash
+# bump version in pyproject.toml first, then
+git tag v0.1.0 && git push --tags
+```
+
+The workflow refuses to publish when the tag and the version in
+`pyproject.toml` disagree, installs the built wheel on Python 3.10 and 3.13, and
+runs [`scripts/prueba_humo.py`](scripts/prueba_humo.py) — an MCP handshake plus a
+check that a call with no simulator present *answers* instead of hanging — before
+it uploads anything. A PyPI version can never be overwritten or reused, so
+failing in CI is much cheaper than burning a version number.
+
+It authenticates with PyPI through Trusted Publishing (OIDC), so there is no
+token stored in the repository secrets.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
@@ -163,7 +184,7 @@ en ejecución de comandos sobre tu máquina.
 
 - CoppeliaSim 4.10 abierto, con el add-on **ZMQ remote API** activo. Viene
   habilitado por defecto, escuchando en el puerto 23000.
-- Python 3.9 o superior.
+- Python 3.10 o superior.
 
 ## Instalación
 
@@ -185,6 +206,7 @@ en el directorio de trabajo — mira `.env.example`.
 | `COPPELIA_DIRECTORIO_ESCENAS` | directorio de trabajo | Solo se pueden cargar escenas por debajo de esta carpeta. |
 | `COPPELIA_MODO_LECTURA` | `0` | A `1` deshabilita todas las tools que modifican la escena. |
 | `COPPELIA_IDIOMAS` | `es` | Alias de nombres de tools. `es,en,pt` o `todos` añade inglés y portugués. |
+| `COPPELIA_TIMEOUT` | `10` | Segundos de espera antes de dar una respuesta por perdida. |
 
 ## Idiomas de los nombres de tools
 

@@ -35,6 +35,7 @@ import os
 import sys
 from pathlib import Path
 
+import zmq
 from coppeliasim_zmqremoteapi_client import RemoteAPIClient
 from dotenv import load_dotenv
 from mcp.server import MCPServer
@@ -47,6 +48,7 @@ COPPELIA_PUERTO = int(os.getenv("COPPELIA_PUERTO", "23000"))
 # cualquier prompt injection acceso de lectura a todo lo que haya ahí debajo.
 DIRECTORIO_ESCENAS = os.getenv("COPPELIA_DIRECTORIO_ESCENAS", os.getcwd())
 MODO_LECTURA = os.getenv("COPPELIA_MODO_LECTURA", "0") == "1"
+TIMEOUT = float(os.getenv("COPPELIA_TIMEOUT", "10"))
 
 EXTENSIONES_ESCENA = {".ttt", ".ttm", ".simscene.xml", ".xml"}
 
@@ -79,18 +81,49 @@ _sim = None
 
 # ─── Conexión ────────────────────────────────────────────────────────────────
 
+def limitar_espera(cliente):
+    """
+    Pone un tope a lo que el cliente espera una respuesta.
+
+    Hace falta porque el `timeout` del cliente ZMQ no protege de esto: ese valor
+    viaja DENTRO de la petición, o sea que es el tiempo que espera CoppeliaSim,
+    no el que espera el cliente. Si no hay nadie escuchando en el puerto, el
+    socket se queda bloqueado en recv esperando una respuesta que nunca llega, y
+    con el valor por defecto del cliente eso son diez minutos.
+
+    Es el fallo más probable de un primer arranque —CoppeliaSim cerrado, o el
+    add-on desactivado— y sin este tope se manifiesta como un cuelgue en vez de
+    como un mensaje que diga qué revisar.
+
+    LINGER a 0 para que descartar la conexión no bloquee al cerrar el socket.
+    """
+    cliente.socket.setsockopt(zmq.RCVTIMEO, int(TIMEOUT * 1000))
+    cliente.socket.setsockopt(zmq.LINGER, 0)
+
+
 def obtener_sim():
     """Devuelve el handle `sim`, reutilizando la conexión ZMQ entre llamadas."""
     global _cliente, _sim
     if _sim is None:
-        _cliente = RemoteAPIClient(host=COPPELIA_HOST, port=COPPELIA_PUERTO)
-        _sim = _cliente.require("sim")
+        cliente = RemoteAPIClient(host=COPPELIA_HOST, port=COPPELIA_PUERTO)
+        limitar_espera(cliente)
+        # `require` es el primer viaje de ida y vuelta: si CoppeliaSim no está,
+        # falla aquí, ya con el tope puesto. Solo se cachea si tuvo éxito, para
+        # no dejar guardado un cliente a medio construir.
+        _sim = cliente.require("sim")
+        _cliente = cliente
     return _sim
 
 
 def reiniciar_conexion():
     """Descarta la conexión cacheada; la siguiente llamada reconecta."""
     global _cliente, _sim
+    if _cliente is not None:
+        try:
+            _cliente.socket.close()
+            _cliente.context.term()
+        except Exception:
+            pass    # ya estaba roto; lo que importa es no reusarlo
     _cliente = None
     _sim = None
 
@@ -107,9 +140,19 @@ def ejecutar(funcion):
         mantiene el socket. Tirarla aquí obligaría a reconectar por cada typo.
       - No hubo respuesta (CoppeliaSim cerrado, add-on apagado, socket muerto).
         Ahí sí se descarta la conexión para que la siguiente llamada reconecte.
+        Un socket REQ de ZMQ queda inservible tras un timeout, así que reusarlo
+        no es una opción: hay que tirarlo.
     """
     try:
         return funcion(obtener_sim())
+    except zmq.Again:
+        reiniciar_conexion()
+        return (
+            f"CoppeliaSim no respondió en {TIMEOUT:g} s ({COPPELIA_HOST}:{COPPELIA_PUERTO}).\n"
+            "Revisa que CoppeliaSim esté abierto y que el add-on 'ZMQ remote API' esté "
+            "activo. Si el simulador está ocupado con una operación larga, súbelo "
+            "con COPPELIA_TIMEOUT."
+        )
     except Exception as error:
         mensaje = str(error)
         if "in sim." in mensaje or "in simxxx." in mensaje:

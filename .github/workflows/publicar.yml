@@ -1,0 +1,99 @@
+# Publica el paquete en PyPI al empujar una etiqueta vX.Y.Z.
+#
+# Usa Trusted Publishing: PyPI confía en este repositorio y este workflow, así
+# que no hay ningún token guardado en los secretos. La identidad la aporta
+# GitHub por OIDC, y de ahí el `id-token: write`.
+#
+# Publicar es irreversible: una versión subida a PyPI no se puede sobreescribir
+# ni reutilizar. Por eso entre construir y publicar hay una prueba de humo que
+# instala el wheel y comprueba que habla MCP. Es más barato fallar aquí que
+# quemar un número de versión.
+
+name: Publicar en PyPI
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  construir:
+    name: Construir el paquete
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Comprobar que la etiqueta coincide con la versión del paquete
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          python - <<'PY'
+          import os, sys, tomllib
+          etiqueta = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+          with open("pyproject.toml", "rb") as f:
+              declarada = tomllib.load(f)["project"]["version"]
+          if etiqueta != declarada:
+              sys.exit(
+                  f"La etiqueta dice {etiqueta} y pyproject.toml dice {declarada}.\n"
+                  "Publicar así deja el número de versión mal para siempre: "
+                  "corrige uno de los dos y vuelve a etiquetar."
+              )
+          print(f"version {declarada}: la etiqueta coincide")
+          PY
+
+      - name: Construir
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  probar:
+    name: Prueba de humo (Python ${{ matrix.python }})
+    needs: construir
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # La versión mínima que declara el paquete, y la más reciente.
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      - name: Instalar el wheel construido
+        run: pip install dist/*.whl
+
+      - name: Comprobar que habla MCP
+        run: python scripts/prueba_humo.py
+
+  publicar:
+    name: Publicar en PyPI
+    needs: probar
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write     # lo exige Trusted Publishing
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
