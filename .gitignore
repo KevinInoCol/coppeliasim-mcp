@@ -13,6 +13,9 @@ venv/
 # macOS
 .DS_Store
 
+# Artefactos de uv: un lock no pertenece a una libreria, solo a una aplicacion
+uv.lock
+
 # Herramientas
 .mcp.json
 .claude/
