@@ -36,6 +36,10 @@ adivinarlos cuesta una tarde:
     chocan entre sí (nada de temblores) pero sí con el suelo y el obstáculo.
   - `computeMassAndInertia` solo funciona con formas convexas. Cada pieza se
     deja convexa por separado en vez de fusionar el chasis con la carga.
+  - La fricción se escribe en `bullet.frictionOld`, no solo en
+    `bullet.friction`: con el Bullet 2.7 por defecto, la propiedad nueva se
+    ignora. Es un fallo silencioso y caro —la rueda loca frena sin que nada lo
+    diga—, y se detecta midiendo, no mirando la escena.
 
 Uso:
     python carrito_diferencial.py            # construye y prueba 12 s de simulación
@@ -214,6 +218,29 @@ def restaurar_agrupadores(sim):
     return restaurados
 
 
+def fijar_friccion(sim, handle, valor):
+    """
+    Escribe el rozamiento en las DOS propiedades de Bullet.
+
+    CoppeliaSim expone 'bullet.friction' y 'bullet.frictionOld', y cuál obedece
+    el motor depende de la versión de Bullet elegida en la escena: con el
+    Bullet 2.7 por defecto manda la vieja, así que escribir solo la nueva no
+    hace absolutamente nada, sin error ni aviso.
+
+    Se midió sobre un robot de tracción diferencial con esta misma rueda loca
+    sin fricción: con la loca a 'bullet.friction' = 0 pero la vieja en 1,
+    recorría el 87% de lo que le tocaba en recta y el 51% en giro, porque la
+    loca frenaba como un patín y el robot derrapaba en skid-steer en vez de
+    pivotar sobre su eje motriz. Escribiendo las dos: 99% y 99%. La de ODE va
+    también, por si se cambia de motor.
+    """
+    for propiedad in ("bullet.friction", "bullet.frictionOld", "ode.friction"):
+        try:
+            sim.setFloatProperty(handle, propiedad, valor)
+        except Exception:
+            pass    # el motor activo no expone esa propiedad; no es un fallo
+
+
 def hacer_dinamico(sim, handle, densidad, friccion, respondable=True):
     """Deja una forma lista para el motor de física: masa, inercia y contacto."""
     sim.setBoolProperty(handle, "dynamic", True)
@@ -221,7 +248,7 @@ def hacer_dinamico(sim, handle, densidad, friccion, respondable=True):
     sim.setIntProperty(handle, "respondableMask", MASCARA_ROBOT)
     if sim.computeMassAndInertia(handle, densidad) != 1:
         raise RuntimeError(f"{sim.getObjectAlias(handle, 1)} no es convexa: sin masa ni inercia")
-    sim.setFloatProperty(handle, "bullet.friction", friccion)
+    fijar_friccion(sim, handle, friccion)
 
 
 def crear_chasis(sim):

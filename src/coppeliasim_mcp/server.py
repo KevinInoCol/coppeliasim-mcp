@@ -20,6 +20,12 @@ circulan por ahí:
   - `cargar_escena` solo abre archivos por debajo de DIRECTORIO_ESCENAS, con la
     ruta resuelta antes de comparar, para que ../../ y los symlinks no sirvan
     para escapar.
+  - `cargar_modelo` solo abre .ttm de la librería de la instalación local de
+    CoppeliaSim. Un .ttm puede traer child scripts en Lua dentro (el kinect.ttm
+    de la propia librería trae dos), así que cargar un modelo de terceros es
+    ejecutar su Lua al darle Play: el mismo agujero que evita no exponer Lua.
+  - `guardar_escena` escribe solo bajo DIRECTORIO_ESCENAS y no sobrescribe sin
+    que se le pida explícitamente.
   - MODO_LECTURA=1 deshabilita de golpe todas las tools que mutan la escena.
   - Una sola conexión ZMQ reutilizada, no un socket nuevo por llamada.
 
@@ -45,6 +51,11 @@ from coppeliasim_zmqremoteapi_client import RemoteAPIClient
 from dotenv import load_dotenv
 from mcp.server import MCPServer
 
+try:
+    from . import __version__
+except ImportError:           # ejecutado como script suelto, fuera del paquete
+    __version__ = "0.0.0+dev"
+
 load_dotenv()
 
 COPPELIA_HOST = os.getenv("COPPELIA_HOST", "127.0.0.1")
@@ -56,6 +67,33 @@ MODO_LECTURA = os.getenv("COPPELIA_MODO_LECTURA", "0") == "1"
 TIMEOUT = float(os.getenv("COPPELIA_TIMEOUT", "10"))
 
 EXTENSIONES_ESCENA = {".ttt", ".ttm", ".simscene.xml", ".xml"}
+# Guardar es más estricto que cargar: .ttm es un modelo, no una escena, y
+# sim.saveScene no lo escribe.
+EXTENSIONES_GUARDADO = {".ttt", ".simscene.xml"}
+
+
+def directorio_modelos_por_defecto():
+    """
+    Localiza la librería de modelos de la instalación de CoppeliaSim.
+
+    No se adivina una sola ruta porque cambia con el sistema. Si no aparece
+    ninguna, las tools de modelos lo dicen en vez de fallar al arrancar: el
+    simulador puede estar en otra máquina y el resto del servidor sirve igual.
+    """
+    raiz = os.getenv("COPPELIASIM_ROOT_DIR", "")
+    candidatos = [
+        "/Applications/coppeliaSim.app/Contents/Resources/models",
+        os.path.join(raiz, "models") if raiz else "",
+        r"C:\Program Files\CoppeliaRobotics\CoppeliaSimEdu\models",
+        str(Path.home() / "CoppeliaSim" / "models"),
+    ]
+    for candidato in candidatos:
+        if candidato and Path(candidato).is_dir():
+            return candidato
+    return ""
+
+
+DIRECTORIO_MODELOS = os.getenv("COPPELIA_DIRECTORIO_MODELOS", "") or directorio_modelos_por_defecto()
 
 TIPOS_OBJETO = {
     "todos": "handle_all",
@@ -68,6 +106,28 @@ TIPOS_OBJETO = {
     "path": "object_path_type",
 }
 
+TIPOS_JUNTA = {
+    "rotativa": "joint_revolute",
+    "lineal": "joint_prismatic",
+}
+
+# El modo de control dinámico va en la propiedad 'dynCtrlMode' de la junta, y
+# sin él el motor ignora las órdenes de velocidad. Los valores se verificaron
+# contra la instalación: velocidad es 4 y posición es 8, no 2 y 5.
+MODOS_JUNTA = {
+    "velocidad": "jointdynctrl_velocity",
+    "posicion": "jointdynctrl_position",
+    "libre": "jointdynctrl_free",
+}
+
+# Una junta gira o desliza a lo largo de su propio +Z. Para ponerlo en otra
+# dirección hay que rotar la junta entera, y estos son los giros que lo hacen.
+EJES_JUNTA = {
+    "z": (0.0, 0.0, 0.0),
+    "y": (-math.pi / 2, 0.0, 0.0),
+    "x": (0.0, math.pi / 2, 0.0),
+}
+
 PRIMITIVAS = {
     "cubo": "primitiveshape_cuboid",
     "esfera": "primitiveshape_spheroid",
@@ -78,7 +138,10 @@ PRIMITIVAS = {
     "toroide": "primitiveshape_torus",
 }
 
-mcp = MCPServer("CoppeliaSim")
+# La versión se toma de la metadata del paquete, igual que __version__: el
+# cliente MCP la enseña en su listado de servidores, y repetirla a mano aquí
+# sería una tercera copia que un día contradice a pyproject.
+mcp = MCPServer("CoppeliaSim", version=__version__)
 
 _cliente = None
 _sim = None
@@ -213,6 +276,10 @@ def detener_simulacion() -> str:
         return bloqueo
 
     def accion(sim):
+        # Sacarla del modo por pasos antes de parar. Si `paso_simulacion` la
+        # dejó esperando órdenes y nadie manda más, la simulación se queda
+        # colgada sin que se vea por qué.
+        sim.setStepping(False)
         sim.stopSimulation()
         return "Simulación detenida."
 
@@ -258,6 +325,39 @@ def tiempo_simulacion() -> str:
     return ejecutar(lambda sim: f"Tiempo de simulación: {sim.getSimulationTime():.4f} s")
 
 
+@mcp.tool()
+def paso_simulacion(pasos: int = 1) -> str:
+    """
+    Avanza la simulación un número exacto de pasos y devuelve el tiempo.
+
+    Para qué sirve: con la simulación en marcha libre no se puede medir nada de
+    forma repetible, porque entre una lectura y la siguiente pasa el tiempo que
+    quiera el reloj. Avanzando por pasos, cada lectura cae siempre en el mismo
+    instante simulado, y dos ejecuciones dan el mismo número.
+
+    Deja la simulación en modo por pasos: a partir de aquí solo avanza cuando se
+    lo pidas. `detener_simulacion` la devuelve a marcha libre, y conviene
+    llamarla al terminar: una simulación esperando un paso que nadie manda
+    parece congelada.
+    """
+    if bloqueo := escritura_permitida():
+        return bloqueo
+
+    def accion(sim):
+        if not 1 <= pasos <= 1000:
+            return f"pasos fuera de rango: {pasos} (entre 1 y 1000)."
+        if sim.getSimulationState() == sim.simulation_stopped:
+            return "La simulación está detenida: arráncala con iniciar_simulacion."
+        sim.setStepping(True)
+        for _ in range(pasos):
+            sim.step()
+        return (f"Avanzados {pasos} pasos de {sim.getSimulationTimeStep():.4f} s. "
+                f"Tiempo de simulación: {sim.getSimulationTime():.4f} s. "
+                "Sigue en modo por pasos hasta que la detengas.")
+
+    return ejecutar(accion)
+
+
 # ─── Escena ──────────────────────────────────────────────────────────────────
 
 @mcp.tool()
@@ -293,6 +393,46 @@ def cargar_escena(ruta: str) -> str:
 
 
 @mcp.tool()
+def guardar_escena(ruta: str, sobrescribir: bool = False) -> str:
+    """
+    Guarda la escena actual en un .ttt.
+
+    Solo escribe por debajo de COPPELIA_DIRECTORIO_ESCENAS, y se niega a pisar
+    un archivo que ya exista salvo que le pases sobrescribir=True. Escribir
+    encima de la escena de otro es de las pocas cosas que aquí no tienen
+    deshacer, así que hay que pedirlo a propósito.
+    """
+    if bloqueo := escritura_permitida():
+        return bloqueo
+
+    base = Path(DIRECTORIO_ESCENAS).expanduser().resolve()
+    destino = Path(ruta).expanduser()
+    if not destino.is_absolute():
+        destino = base / destino
+    destino = destino.resolve()
+
+    if not destino.is_relative_to(base):
+        return (
+            f"Bloqueado: '{destino}' está fuera de {base}. "
+            "Cambia la ruta o COPPELIA_DIRECTORIO_ESCENAS."
+        )
+    if not any(destino.name.endswith(ext) for ext in EXTENSIONES_GUARDADO):
+        return (f"Bloqueado: '{destino.name}' no es una escena guardable "
+                f"({', '.join(sorted(EXTENSIONES_GUARDADO))}).")
+    if not destino.parent.is_dir():
+        return f"No existe el directorio: {destino.parent}"
+    if destino.exists() and not sobrescribir:
+        return (f"'{destino}' ya existe. Llama otra vez con sobrescribir=True "
+                "si de verdad quieres pisarlo.")
+
+    def accion(sim):
+        sim.saveScene(str(destino))
+        return f"Escena guardada: {destino}"
+
+    return ejecutar(accion)
+
+
+@mcp.tool()
 def cerrar_escena() -> str:
     """Cierra la escena actual."""
     if bloqueo := escritura_permitida():
@@ -301,6 +441,85 @@ def cerrar_escena() -> str:
     def accion(sim):
         sim.closeScene()
         return "Escena cerrada."
+
+    return ejecutar(accion)
+
+
+@mcp.tool()
+def listar_modelos(filtro: str = "", limite: int = 40) -> str:
+    """
+    Lista los modelos .ttm de la librería que trae CoppeliaSim instalado.
+
+    filtro: texto que debe aparecer en la ruta, sin distinguir mayúsculas
+    ('kinect', 'robots/mobile', 'sensor'). Sin filtro devuelve los primeros que
+    encuentre, que son cientos: conviene filtrar.
+    """
+    if not DIRECTORIO_MODELOS:
+        return (
+            "No encuentro la librería de modelos de CoppeliaSim. "
+            "Ponla en COPPELIA_DIRECTORIO_MODELOS o define COPPELIASIM_ROOT_DIR."
+        )
+
+    base = Path(DIRECTORIO_MODELOS)
+    buscado = filtro.strip().lower()
+    encontrados = []
+    for archivo in sorted(base.rglob("*.ttm")):
+        relativa = archivo.relative_to(base).as_posix()
+        if buscado and buscado not in relativa.lower():
+            continue
+        encontrados.append(relativa)
+
+    recortados = encontrados[:max(1, limite)]
+    return json.dumps(
+        {
+            "libreria": str(base),
+            "total": len(encontrados),
+            "mostrados": len(recortados),
+            "modelos": recortados,
+        },
+        ensure_ascii=False,
+    )
+
+
+@mcp.tool()
+def cargar_modelo(modelo: str, x: float = 0.0, y: float = 0.0, z: float = 0.0) -> str:
+    """
+    Carga un modelo .ttm de la librería de CoppeliaSim en la escena.
+
+    modelo: ruta relativa dentro de la librería, tal como la devuelve
+    `listar_modelos` (por ejemplo 'components/sensors/kinect.ttm').
+
+    Solo carga de esa librería, y no de una ruta cualquiera, a propósito: un
+    .ttm puede llevar child scripts en Lua dentro —el kinect.ttm oficial lleva
+    dos— y esos scripts se ejecutan al darle Play. Cargar un modelo que llegó
+    de fuera es, en la práctica, ejecutar el código que traiga.
+    """
+    if bloqueo := escritura_permitida():
+        return bloqueo
+    if not DIRECTORIO_MODELOS:
+        return (
+            "No encuentro la librería de modelos de CoppeliaSim. "
+            "Ponla en COPPELIA_DIRECTORIO_MODELOS o define COPPELIASIM_ROOT_DIR."
+        )
+
+    base = Path(DIRECTORIO_MODELOS).expanduser().resolve()
+    try:
+        destino = (base / modelo).expanduser().resolve(strict=True)
+    except FileNotFoundError:
+        return f"No existe ese modelo en la librería: {modelo}"
+    if not destino.is_relative_to(base):
+        return f"Bloqueado: '{modelo}' apunta fuera de la librería {base}."
+    if destino.suffix != ".ttm":
+        return f"Bloqueado: '{destino.name}' no es un modelo .ttm."
+
+    def accion(sim):
+        handle = sim.loadModel(str(destino))
+        sim.setObjectPosition(handle, [x, y, z], sim.handle_world)
+        scripts = sim.getObjectsInTree(handle, sim.sceneobject_script, 0)
+        aviso = (f" Trae {len(scripts)} script(s) propios, que se ejecutarán al "
+                 "darle Play.") if scripts else ""
+        return (f"Cargado '{sim.getObjectAlias(handle, 1)}' en ({x}, {y}, {z}) "
+                f"desde {destino.name}.{aviso}")
 
     return ejecutar(accion)
 
@@ -416,12 +635,17 @@ def crear_primitiva(
     x: float = 0.0,
     y: float = 0.0,
     z: float = 0.0,
+    alias: str = "",
 ) -> str:
     """
     Crea una forma primitiva en la escena y devuelve su ruta.
 
     forma: 'cubo', 'esfera', 'cilindro', 'cono', 'capsula', 'disco', 'toroide'.
     Tamaños y posición en metros.
+    alias: nombre con el que quedará en la escena. Sin él CoppeliaSim las llama
+        'Cuboid', 'Cuboid[0]', 'Cuboid[1]'..., y como emparentar renumera a los
+        hermanos, la ruta que te devolvió una llamada puede referirse a otra
+        pieza tres llamadas después. Con nombres propios eso no pasa.
     """
     if bloqueo := escritura_permitida():
         return bloqueo
@@ -431,6 +655,8 @@ def crear_primitiva(
             return f"Forma desconocida '{forma}'. Válidas: {', '.join(PRIMITIVAS)}"
         constante = getattr(sim, PRIMITIVAS[forma])
         handle = sim.createPrimitiveShape(constante, [tamano_x, tamano_y, tamano_z], 0)
+        if alias:
+            sim.setObjectAlias(handle, alias)
         sim.setObjectPosition(handle, [x, y, z], sim.handle_world)
         return f"Creado {forma} '{sim.getObjectAlias(handle, 1)}' en ({x}, {y}, {z})."
 
@@ -488,7 +714,224 @@ def fijar_detectable(nombre: str, detectable: bool = True) -> str:
 
     return ejecutar(accion)
 
+# ─── Física y apariencia ─────────────────────────────────────────────────────
+
+def aplicar_friccion(sim, handle, valor):
+    """
+    Escribe el rozamiento en las dos propiedades de Bullet, y en la de ODE.
+
+    Aquí hay una trampa cara: CoppeliaSim expone 'bullet.friction' Y
+    'bullet.frictionOld', y cuál obedece el motor depende de la versión de
+    Bullet seleccionada en la escena. Con el Bullet 2.7 por defecto manda la
+    vieja, así que escribir solo 'bullet.friction' no hace nada en absoluto.
+
+    Se midió con un robot de tracción diferencial: con la rueda loca en
+    'bullet.friction' = 0 pero la vieja en 1, recorría el 87% de lo que le
+    tocaba en recta y el 51% en giro, derrapando en vez de pivotar sobre su eje
+    motriz. Escribiendo las dos: 99% y 99%.
+    """
+    escritas = []
+    for propiedad in ("bullet.friction", "bullet.frictionOld", "ode.friction"):
+        try:
+            sim.setFloatProperty(handle, propiedad, valor)
+            escritas.append(propiedad)
+        except Exception:
+            pass        # el motor activo no expone esa propiedad; no es un fallo
+    return escritas
+
+
+@mcp.tool()
+def fijar_dinamica(
+    nombre: str,
+    dinamico: bool = True,
+    respondable: bool = True,
+    densidad: float = 0.0,
+    friccion: float = -1.0,
+    chocar_con_hermanos: bool = True,
+) -> str:
+    """
+    Deja una forma lista para el motor de física: masa, contacto y rozamiento.
+
+    Sin esto una forma recién creada es decorado: ni cae, ni empuja, ni la
+    empujan. Es el paso que falta entre 'crear_primitiva' y tener un robot.
+
+    dinamico: False la clava en el sitio (suelo, paredes, obstáculos).
+    respondable: si choca con las demás. Un cuerpo dinámico no respondable
+        atraviesa el suelo y se cae de la escena.
+    densidad: kg/m³ para calcular masa e inercia a partir del volumen real de
+        la forma. 0 significa 'no tocar la masa'. Para una masa concreta,
+        divide esa masa entre el volumen. Solo funciona en formas convexas.
+    friccion: 0 resbala, 1 agarra. Negativo significa 'no tocar el rozamiento'.
+    chocar_con_hermanos: False evita que las piezas de un mismo robot choquen
+        entre ellas (ruedas contra chasis), que es de donde salen los
+        temblores, sin dejar de chocar con el suelo y el resto del mundo.
+    """
+    if bloqueo := escritura_permitida():
+        return bloqueo
+
+    def accion(sim):
+        handle = sim.getObject(ruta_de(nombre))
+        sim.setBoolProperty(handle, "dynamic", dinamico)
+        sim.setBoolProperty(handle, "respondable", respondable)
+        # Los 8 bits bajos gobiernan las colisiones dentro del mismo árbol, los
+        # 8 altos con el resto del mundo.
+        sim.setIntProperty(handle, "respondableMask",
+                           0xFFFF if chocar_con_hermanos else 0xFF00)
+
+        detalles = [f"dinámico={dinamico}", f"respondable={respondable}"]
+        if densidad > 0:
+            if sim.computeMassAndInertia(handle, densidad) != 1:
+                return (f"'{nombre}': computeMassAndInertia falló. Solo funciona "
+                        "con formas convexas; si es una malla cóncava o un grupo, "
+                        "no puede repartir la masa.")
+            detalles.append(f"masa={sim.getFloatProperty(handle, 'mass'):.4f} kg "
+                            f"(densidad {densidad:g} kg/m³)")
+        if friccion >= 0:
+            aplicar_friccion(sim, handle, friccion)
+            detalles.append(f"fricción={friccion:g}")
+        if not chocar_con_hermanos:
+            detalles.append("no choca con sus hermanos de árbol")
+
+        return f"'{sim.getObjectAlias(handle, 1)}': " + ", ".join(detalles) + "."
+
+    return ejecutar(accion)
+
+
+@mcp.tool()
+def fijar_color(nombre: str, r: float, g: float, b: float) -> str:
+    """
+    Pinta una forma. Componentes de 0 a 1.
+
+    Sirve para algo más que la estética: en una escena de veinte cubos grises,
+    el color es lo que permite decir cuál es cuál en una captura.
+    """
+    if bloqueo := escritura_permitida():
+        return bloqueo
+
+    def accion(sim):
+        for canal, valor in (("r", r), ("g", g), ("b", b)):
+            if not 0.0 <= valor <= 1.0:
+                return f"El componente {canal} debe estar entre 0 y 1: {valor}"
+        handle = sim.getObject(ruta_de(nombre))
+        sim.setShapeColor(handle, None, sim.colorcomponent_ambient_diffuse, [r, g, b])
+        return f"'{sim.getObjectAlias(handle, 1)}' pintado de ({r}, {g}, {b})."
+
+    return ejecutar(accion)
+
+
 # ─── Articulaciones ──────────────────────────────────────────────────────────
+
+@mcp.tool()
+def crear_junta(
+    tipo: str = "rotativa",
+    x: float = 0.0,
+    y: float = 0.0,
+    z: float = 0.0,
+    eje: str = "z",
+    modo: str = "velocidad",
+    par_maximo: float = 1.0,
+    padre: str = "mundo",
+    alias: str = "Junta",
+) -> str:
+    """
+    Crea una articulación motorizada y la deja lista para recibir órdenes.
+
+    tipo: 'rotativa' (gira) o 'lineal' (desliza).
+    eje: 'x', 'y' o 'z' — en qué dirección gira o desliza, respecto al padre.
+    modo: 'velocidad' para un motor de rueda, 'posicion' para un brazo,
+        'libre' para que la junta gire suelta sin motor.
+    par_maximo: par o fuerza que el motor puede dar (N·m o N). Si se queda
+        corto, la junta no llega a la velocidad pedida y no hay ningún error
+        que lo diga: simplemente va lenta.
+    padre: ruta del objeto del que cuelga, por ejemplo el chasis de un robot.
+
+    Dos cosas que cuesta descubrir a solas:
+      - Una junta se mueve a lo largo de su propio +Z. Para una rueda que
+        avance hacia +X, su eje tiene que quedar sobre Y: eje='y'. Esta tool
+        aplica el giro por ti.
+      - El motor no obedece hasta que se le pone el modo de control dinámico.
+        Es una propiedad de la junta, no un argumento de la llamada de creación,
+        y una junta sin ella se queda quieta pase lo que pase.
+
+    Después de crearla: cuelga la rueda de la junta con `emparentar_objeto`,
+    dale masa con `fijar_dinamica`, y muévela con `fijar_velocidad_junta`.
+    """
+    if bloqueo := escritura_permitida():
+        return bloqueo
+
+    def accion(sim):
+        if tipo not in TIPOS_JUNTA:
+            return f"Tipo de junta desconocido '{tipo}'. Válidos: {', '.join(TIPOS_JUNTA)}"
+        if eje not in EJES_JUNTA:
+            return f"Eje desconocido '{eje}'. Válidos: {', '.join(EJES_JUNTA)}"
+        if modo not in MODOS_JUNTA:
+            return f"Modo desconocido '{modo}'. Válidos: {', '.join(MODOS_JUNTA)}"
+
+        handle = sim.createJoint(getattr(sim, TIPOS_JUNTA[tipo]),
+                                 sim.jointmode_dynamic, 0, [0.05, 0.03])
+        sim.setObjectAlias(handle, alias)
+
+        referencia = sim.handle_world
+        if padre != "mundo":
+            referencia = sim.getObject(ruta_de(padre))
+            sim.setObjectParent(handle, referencia, False)
+        sim.setObjectPosition(handle, [x, y, z], referencia)
+        sim.setObjectOrientation(handle, list(EJES_JUNTA[eje]), referencia)
+
+        sim.setIntProperty(handle, "dynCtrlMode", getattr(sim, MODOS_JUNTA[modo]))
+        sim.setFloatProperty(handle, "targetForce", par_maximo)
+        sim.setJointTargetVelocity(handle, 0.0)
+
+        return (f"Creada junta {tipo} '{sim.getObjectAlias(handle, 1)}' en "
+                f"({x}, {y}, {z}) respecto a {padre}, moviéndose sobre el eje "
+                f"{eje.upper()}, en modo {modo} con {par_maximo:g} de par máximo.")
+
+    return ejecutar(accion)
+
+
+@mcp.tool()
+def crear_union_rigida(
+    x: float = 0.0,
+    y: float = 0.0,
+    z: float = 0.0,
+    padre: str = "mundo",
+    alias: str = "UnionRigida",
+) -> str:
+    """
+    Crea un sensor de fuerza, que es como se sueldan dos cuerpos dinámicos.
+
+    Suena raro usar un sensor para unir cosas, pero es lo que documenta
+    CoppeliaSim: emparentar dos formas dinámicas NO las une —siguen siendo
+    cuerpos separados y se caen cada uno por su lado—, y la única forma de
+    fijarlas es una junta o un sensor de fuerza.
+
+    Y hay un caso donde el sensor de fuerza es la única opción: cuando las dos
+    piezas necesitan rozamientos distintos. Fusionar las formas las obliga a
+    compartir el coeficiente, así que un chasis con agarre y una rueda loca que
+    resbale no se pueden fusionar; hay que unirlos por aquí.
+
+    Uso: se crea colgando del chasis, y la pieza a unir se cuelga de él con
+    `emparentar_objeto`. De paso mide la fuerza que pasa por la unión, que se
+    lee con `obtener_fuerza_junta`.
+    """
+    if bloqueo := escritura_permitida():
+        return bloqueo
+
+    def accion(sim):
+        handle = sim.createForceSensor(0, [0, 1, 1, 0, 0], [0.005, 0.0, 0.0, 0.0, 0.0])
+        sim.setObjectAlias(handle, alias)
+
+        referencia = sim.handle_world
+        if padre != "mundo":
+            referencia = sim.getObject(ruta_de(padre))
+            sim.setObjectParent(handle, referencia, False)
+        sim.setObjectPosition(handle, [x, y, z], referencia)
+        sim.setObjectOrientation(handle, [0.0, 0.0, 0.0], referencia)
+        return (f"Creada unión rígida '{sim.getObjectAlias(handle, 1)}' en "
+                f"({x}, {y}, {z}) respecto a {padre}. Cuelga de ella la pieza a unir.")
+
+    return ejecutar(accion)
+
 
 @mcp.tool()
 def obtener_posicion_junta(junta: str) -> str:
@@ -707,9 +1150,25 @@ ALIAS = {
         "en": ("simulation_time", "Return the current simulation time, in seconds."),
         "pt": ("tempo_simulacao", "Retorna o tempo atual de simulação, em segundos."),
     },
+    "paso_simulacion": {
+        "en": ("step_simulation", "Advance the simulation by an exact number of steps, for repeatable measurements."),
+        "pt": ("passo_simulacao", "Avança a simulação um número exato de passos, para medições repetíveis."),
+    },
     "cargar_escena": {
         "en": ("load_scene", "Load a .ttt or .xml scene from disk, restricted to the configured folder."),
         "pt": ("carregar_cena", "Carrega uma cena .ttt ou .xml do disco, restrita à pasta configurada."),
+    },
+    "guardar_escena": {
+        "en": ("save_scene", "Save the current scene to a .ttt, restricted to the configured folder."),
+        "pt": ("salvar_cena", "Salva a cena atual em um .ttt, restrito à pasta configurada."),
+    },
+    "listar_modelos": {
+        "en": ("list_models", "List the .ttm models shipped with the local CoppeliaSim installation."),
+        "pt": ("listar_modelos_biblioteca", "Lista os modelos .ttm da instalação local do CoppeliaSim."),
+    },
+    "cargar_modelo": {
+        "en": ("load_model", "Load a .ttm model from the local CoppeliaSim library into the scene."),
+        "pt": ("carregar_modelo", "Carrega um modelo .ttm da biblioteca local do CoppeliaSim na cena."),
     },
     "cerrar_escena": {
         "en": ("close_scene", "Close the current scene."),
@@ -750,6 +1209,22 @@ ALIAS = {
     "fijar_detectable": {
         "en": ("set_detectable", "Mark or unmark an object as detectable by proximity sensors."),
         "pt": ("definir_detectavel", "Marca ou desmarca um objeto como detectável por sensores de proximidade."),
+    },
+    "fijar_dinamica": {
+        "en": ("set_dynamics", "Give a shape mass, contact response and friction so physics acts on it."),
+        "pt": ("definir_dinamica", "Dá a uma forma massa, resposta a contato e atrito, para que a física atue."),
+    },
+    "fijar_color": {
+        "en": ("set_color", "Paint a shape. Components from 0 to 1."),
+        "pt": ("definir_cor", "Pinta uma forma. Componentes de 0 a 1."),
+    },
+    "crear_junta": {
+        "en": ("create_joint", "Create a motorized joint (revolute or prismatic) ready to take commands."),
+        "pt": ("criar_junta", "Cria uma junta motorizada (rotativa ou linear) pronta para receber comandos."),
+    },
+    "crear_union_rigida": {
+        "en": ("create_rigid_link", "Create a force sensor, the way two dynamic bodies get welded together."),
+        "pt": ("criar_uniao_rigida", "Cria um sensor de força, a forma de soldar dois corpos dinâmicos."),
     },
     "obtener_posicion_junta": {
         "en": ("get_joint_position", "Return a joint's position, in radians or meters."),

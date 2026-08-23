@@ -16,8 +16,15 @@ python carrito_diferencial.py --solo-construir  # build only
 
 **This script talks to CoppeliaSim directly over the ZMQ remote API, not through
 the MCP server.** It is here as the reference implementation of a robot you can
-also build by asking the MCP server for it, tool call by tool call — and because
-it documents, in code, the API facts that cost the most time to discover:
+also build by asking the MCP server for it, tool call by tool call: since 0.2.0
+`crear_junta`, `crear_union_rigida`, `fijar_dinamica` and `paso_simulacion`
+cover everything this script needs, and a robot rebuilt that way travelled 98%
+of its theoretical distance. A script is still the better tool for building —
+it is versioned, re-runnable and can measure itself — while the MCP server is
+better at inspecting and driving a scene that already exists.
+
+It is also here because it documents, in code, the API facts that cost the most
+time to discover:
 
 - `sim.jointdynctrl_velocity` is `4`, and goes in the joint's `dynCtrlMode`
   property. Without it the motor ignores target velocities.
@@ -32,6 +39,12 @@ it documents, in code, the API facts that cost the most time to discover:
   colliding with each other while still colliding with the floor.
 - `computeMassAndInertia` only works on convex shapes, and returns 0 when it
   fails rather than raising.
+- **Friction goes in `bullet.frictionOld`, not just `bullet.friction`.**
+  CoppeliaSim exposes both and the default Bullet 2.7 obeys the old one, so
+  setting only the new property does nothing — silently. A caster meant to be
+  frictionless kept dragging: 87% of the intended straight-line distance and 51%
+  of the turn rate, skid-steering instead of pivoting on the drive axle. Writing
+  both: 99% and 99%. Nothing in the scene looks wrong; only measuring finds it.
 - A proximity cone pointing horizontally sees the **floor** before it sees the
   obstacle, and a robot that pitches nose-down under acceleration makes it
   worse. The script prints the floor-intersection distance on every build so the
@@ -63,9 +76,15 @@ python carrito_diferencial.py --solo-construir  # solo construye
 
 **Habla con CoppeliaSim directamente por la ZMQ remote API, no a través del
 servidor MCP.** Está aquí como implementación de referencia de un robot que
-también puedes construir pidiéndoselo al MCP tool por tool, y porque documenta
-en código los detalles de la API que cuestan más tiempo descubrir: los mismos
-que lista la sección en inglés de arriba.
+también puedes construir pidiéndoselo al MCP tool por tool: desde la 0.2.0,
+`crear_junta`, `crear_union_rigida`, `fijar_dinamica` y `paso_simulacion` cubren
+todo lo que necesita este script, y un robot rehecho así recorrió el 98% de su
+distancia teórica. Aun así, para construir sigue siendo mejor un script —queda
+versionado, se vuelve a ejecutar y se mide solo—; el MCP es mejor para
+inspeccionar y manejar una escena que ya existe.
+
+Y está aquí porque documenta en código los detalles de la API que cuestan más
+tiempo descubrir: los mismos que lista la sección en inglés de arriba.
 
 El script no solo construye: corre la simulación y mide si el robot de verdad
 funciona —avance, estabilidad del chasis, detecciones, y colisiones reales

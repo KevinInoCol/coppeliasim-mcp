@@ -4,7 +4,7 @@ Prueba de humo del paquete instalado: comprueba que habla MCP de verdad.
 No necesita CoppeliaSim. Verifica tres cosas, y las tres han fallado alguna vez:
 
   1. El ejecutable arranca y completa el handshake MCP.
-  2. Expone las 23 tools esperadas (un entry point roto o un import perdido se
+  2. Expone las 31 tools esperadas (un entry point roto o un import perdido se
      manifiesta aquí, no en el `pip install`, que pasaría igual).
   3. Con el simulador ausente, una llamada RESPONDE con un error accionable en
      vez de colgarse. El cliente ZMQ espera diez minutos por defecto, así que
@@ -23,7 +23,7 @@ import sys
 import threading
 import time
 
-TOOLS_ESPERADAS = 23
+TOOLS_ESPERADAS = 31
 TIMEOUT_PRUEBA = 3.0          # segundos que el servidor debe esperar, como máximo
 MARGEN = 4.0                  # cuánto de más toleramos antes de llamarlo cuelgue
 PUERTO_CERRADO = "59999"      # nadie escucha aquí
