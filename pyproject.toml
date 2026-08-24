@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "coppeliasim-mcp"
-version = "0.2.0"
+version = "0.3.0"
 description = "MCP server to drive CoppeliaSim 4.10 from Claude Code and other MCP clients, without exposing arbitrary Lua execution"
 readme = "README.md"
 requires-python = ">=3.10"

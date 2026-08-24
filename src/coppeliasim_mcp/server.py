@@ -138,10 +138,50 @@ PRIMITIVAS = {
     "toroide": "primitiveshape_torus",
 }
 
+# Esto viaja al modelo cliente en el handshake, así que se paga en tokens en
+# cada conversación. Es criterio, no manual: lo que un modelo no puede deducir
+# del catálogo de tools por bien nombradas que estén. El detalle largo vive en
+# el README, que quien desarrolla sí lee.
+INSTRUCCIONES = """\
+Drives an already running CoppeliaSim 4.10 through its ZMQ remote API.
+
+WHEN TO USE THESE TOOLS, AND WHEN NOT TO
+
+Use them to inspect, assemble and verify a scene interactively: list what is
+there, place a shape, step the simulation, read a sensor back. They are the
+fastest way to answer "is it actually where I think it is?", and they let you
+check a result instead of assuming it.
+
+They are NOT how a robotics project gets written. Every call is a round trip
+driven by a language model, so a control loop cannot run through them. When the
+user wants robot behaviour, a controller, or anything that must be reproducible
+and version controlled, write a Python script against
+`coppeliasim_zmqremoteapi_client` -- the same API behind these tools -- and use
+the tools to verify what the script built. The script is the deliverable; the
+tools are the debugger. Bulk geometry belongs in the script too: forty walls is
+forty calls that leave nothing behind.
+
+WHAT WILL WASTE YOUR TIME OTHERWISE
+
+- `leer_sensor_proximidad` reports the simulator's last pass, so it returns
+  nothing while the simulation is stopped. `comprobar_sensor_proximidad`
+  detects on demand.
+- A shape is invisible to every proximity sensor until `fijar_detectable`.
+- A joint acts along its own +Z and ignores speed orders until its control mode
+  is set. `crear_junta` does both; parenting alone never rigidly attaches two
+  dynamic shapes, which is what `crear_union_rigida` is for.
+- Re-parenting renumbers sibling paths, so list objects again between
+  successive `emparentar_objeto` calls.
+
+Arbitrary Lua execution is deliberately not exposed: CoppeliaSim's Lua reaches
+`os` and `io`, so it would turn any untrusted scene into code execution. Use
+the typed tools, or a Python script.
+"""
+
 # La versión se toma de la metadata del paquete, igual que __version__: el
 # cliente MCP la enseña en su listado de servidores, y repetirla a mano aquí
 # sería una tercera copia que un día contradice a pyproject.
-mcp = MCPServer("CoppeliaSim", version=__version__)
+mcp = MCPServer("CoppeliaSim", version=__version__, instructions=INSTRUCCIONES)
 
 _cliente = None
 _sim = None

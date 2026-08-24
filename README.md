@@ -94,6 +94,18 @@ motorized joints, a rigid link, mass and friction, a sensor, then step the
 simulation and measure. The differential drive robot from `examples/` was
 rebuilt call by call this way and travelled 98% of its theoretical distance.
 
+## What the server tells the model
+
+At handshake the server sends the client model a short set of instructions, on
+top of the tool catalog. It is deliberately about *judgment* rather than
+mechanics: that these tools are for inspecting and verifying a scene, that a
+control loop cannot run through them, and that anything reproducible belongs in
+a Python script against `coppeliasim_zmqremoteapi_client` — the same API these
+tools use — with the tools employed to check the result.
+
+It costs ~440 tokens per request. The mechanics stay in this README, which the
+model reads only if you point it there.
+
 ## Tool name languages
 
 Tools are defined in Spanish (`crear_primitiva`, `leer_sensor_proximidad`, …).
