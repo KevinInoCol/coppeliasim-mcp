@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "coppeliasim-mcp"
-version = "0.3.0"
+version = "0.3.1"
 description = "MCP server to drive CoppeliaSim 4.10 from Claude Code and other MCP clients, without exposing arbitrary Lua execution"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -30,6 +30,16 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "pyzmq>=25",
 ]
+
+# PyPI solo enseña estos enlaces en la barra lateral del proyecto, y la
+# metadata de una versión ya subida no se puede editar: añadirlos obliga a
+# publicar una versión nueva. Sin ellos, quien llega a la página de PyPI no
+# tiene forma de encontrar el código ni de abrir un issue.
+[project.urls]
+Homepage = "https://github.com/KevinInoCol/coppeliasim-mcp"
+Repository = "https://github.com/KevinInoCol/coppeliasim-mcp"
+Issues = "https://github.com/KevinInoCol/coppeliasim-mcp/issues"
+Changelog = "https://github.com/KevinInoCol/coppeliasim-mcp/releases"
 
 [project.scripts]
 coppeliasim-mcp = "coppeliasim_mcp.server:main"
