@@ -53,6 +53,31 @@ Or, for any MCP client that reads a JSON config:
 }
 ```
 
+## Install as a Claude Code plugin (server + skills)
+
+Installing the plugin brings the MCP server *and* a set of skills that teach how
+to lay a CoppeliaSim project out so it stays reproducible:
+
+```
+/plugin marketplace add KevinInoCol/coppeliasim-mcp
+/plugin install coppeliasim@coppeliasim
+```
+
+The plugin's `.mcp.json` runs `uvx coppeliasim-mcp`, so the server still comes
+from PyPI — the repository only adds the guidance on top.
+
+| Skill | What it covers |
+|---|---|
+| Project structure | one script per artifact, the connect/clean/create/build/verify order, and what belongs in the Python API rather than in these tools |
+| Building a scene | walls with doorways, the three independent properties (dynamic / respondable / detectable), and verifying in code that the robot fits and every area is reachable |
+| Differential robot and sensors | joint axis and control mode, the friction Bullet actually obeys, collision groups, sensor blind zones and the cone that sees the floor |
+
+Each exists in Spanish, English and Portuguese; Claude picks one from context,
+and only the one-line descriptions stay in context permanently.
+
+The skills are distilled from working projects, and every figure in them was
+measured rather than assumed.
+
 ## Configuration
 
 All settings are optional environment variables. They can also live in a `.env`

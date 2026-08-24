@@ -1,0 +1,9 @@
+{
+  "name": "coppeliasim",
+  "description": "Drive CoppeliaSim 4.10 from Claude Code: an MCP server for scenes, joints and sensors, plus skills that teach how to lay out a robotics project so it stays reproducible.",
+  "version": "0.4.0",
+  "author": { "name": "Kevin Inofuente Colque" },
+  "homepage": "https://github.com/KevinInoCol/coppeliasim-mcp",
+  "repository": "https://github.com/KevinInoCol/coppeliasim-mcp",
+  "license": "MIT"
+}

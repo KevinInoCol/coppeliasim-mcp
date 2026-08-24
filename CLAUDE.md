@@ -62,9 +62,40 @@ Semver as applied here: new tools bump the minor, fixes bump the patch.
 - **`COPPELIA_MODO_LECTURA=1` must disable every mutating tool.** A new
   write tool has to honour it.
 - **One reused ZMQ connection**, not a socket per call.
-- **The version number lives in `pyproject.toml` and nowhere else.** Both
-  `__version__` and the MCP handshake read it from package metadata. Do not add
-  a third copy.
+- **`pyproject.toml` is the version's source of truth.** `__version__` and the
+  MCP handshake both read it from package metadata, so never hardcode it there.
+  The one unavoidable duplicate is `.claude-plugin/plugin.json`, which cannot
+  read Python metadata; CI fails the release if the two disagree, because a
+  stale `plugin.json` silently stops users from receiving the new version.
+
+## Skills and the plugin
+
+The repository is also a Claude Code plugin: `.claude-plugin/plugin.json` plus
+`.claude-plugin/marketplace.json` at the root, `skills/` beside them, and a
+`.mcp.json` that points at `uvx coppeliasim-mcp` so installing the plugin brings
+the server from PyPI rather than from this checkout.
+
+`skills/` holds three topics, each written three times — Spanish, English and
+Portuguese, mirroring `COPPELIA_IDIOMAS`:
+
+| Topic | es | en | pt |
+|---|---|---|---|
+| Project layout | `estructura-de-proyecto` | `project-structure` | `estrutura-de-projeto` |
+| Scenes | `construir-escena` | `build-a-scene` | `construir-cena` |
+| Robot and sensors | `robot-diferencial-y-sensores` | `differential-robot-and-sensors` | `robo-diferencial-e-sensores` |
+
+Only the `description` of each skill is always in context (~830 tokens for all
+nine); the bodies load on demand. A skill's `name` must match its folder.
+
+**Editing one language means editing all three.** They are translations of the
+same procedure, not independent documents, and nothing enforces it — the cost of
+the trilingual choice lands here. Test with
+`claude --plugin-dir .` and validate with `claude plugin validate . --strict`.
+
+The content is distilled from real working projects, not written from theory.
+Every measurement quoted in a skill (87% of straight-line distance, 49 simulated
+seconds in 2 of wall clock, the floor entering a 10-degree cone at 57 cm) came
+from a robot that runs. Do not add a claim you have not measured.
 
 ## Facts, and where they were checked
 

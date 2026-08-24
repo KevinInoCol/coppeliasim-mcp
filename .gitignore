@@ -17,5 +17,7 @@ venv/
 uv.lock
 
 # Herramientas
-.mcp.json
+# OJO: .mcp.json NO se ignora. Desde que el repositorio es también un plugin de
+# Claude Code, ese archivo es lo que declara el servidor MCP del plugin: sin él
+# se instala la guía sin las tools, y nada avisa.
 .claude/

@@ -43,7 +43,17 @@ jobs:
                   "Publicar así deja el número de versión mal para siempre: "
                   "corrige uno de los dos y vuelve a etiquetar."
               )
-          print(f"version {declarada}: la etiqueta coincide")
+          # El plugin de Claude Code repite el número, y no hay forma de que lo
+          # lea de pyproject: un plugin.json desactualizado deja a los usuarios
+          # sin recibir la versión nueva, en silencio.
+          import json
+          plugin = json.loads(open(".claude-plugin/plugin.json").read())["version"]
+          if plugin != declarada:
+              sys.exit(
+                  f".claude-plugin/plugin.json dice {plugin} y pyproject.toml "
+                  f"dice {declarada}. Súbelos a la vez."
+              )
+          print(f"version {declarada}: la etiqueta, pyproject y plugin.json coinciden")
           PY
 
       - name: Construir

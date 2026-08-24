@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "coppelia": {
+      "command": "uvx",
+      "args": ["coppeliasim-mcp"]
+    }
+  }
+}

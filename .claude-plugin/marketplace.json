@@ -1,0 +1,15 @@
+{
+  "name": "coppeliasim",
+  "description": "CoppeliaSim 4.10 for Claude Code: an MCP server for scenes, joints and sensors, plus skills in Spanish, English and Portuguese on laying out a robotics project so it stays reproducible.",
+  "owner": {
+    "name": "Kevin Inofuente Colque",
+    "url": "https://github.com/KevinInoCol"
+  },
+  "plugins": [
+    {
+      "name": "coppeliasim",
+      "source": "./",
+      "description": "MCP server for CoppeliaSim 4.10 plus skills for laying out a robotics project, building scenes, and getting a differential drive robot and its sensors to actually work."
+    }
+  ]
+}
