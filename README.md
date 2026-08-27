@@ -116,7 +116,7 @@ file in the working directory — see `.env.example`.
 
 Together these build a working robot without leaving the tool catalog: shapes,
 motorized joints, a rigid link, mass and friction, a sensor, then step the
-simulation and measure. The differential drive robot from `examples/` was
+simulation and measure. The differential drive robot in `examples/` was
 rebuilt call by call this way and travelled 98% of its theoretical distance.
 
 ## What the server tells the model
@@ -154,9 +154,18 @@ prompt.
 
 ## Examples
 
-[`examples/carrito_diferencial.py`](examples/carrito_diferencial.py) builds a
-complete differential drive robot with obstacle avoidance and measures whether it
-actually works. See [examples/README.md](examples/README.md).
+Two complete projects, built against a real simulator and measured rather than
+assumed — every figure quoted in this README came from them.
+
+- [`examples/Proyecto-01-Carrito-Diferencial/`](examples/Proyecto-01-Carrito-Diferencial/)
+  — a differential drive robot with obstacle avoidance, and where the
+  `bullet.frictionOld` trap was found.
+- [`examples/Proyecto-02-Casa/`](examples/Proyecto-02-Casa/) — a house that
+  verifies by BFS that every room is reachable, a robot built from dimensioned
+  plans, and keyboard teleop.
+
+They are plain Python against `coppeliasim_zmqremoteapi_client`, not tool calls:
+that is what a project looks like. See [examples/README.md](examples/README.md).
 
 ## Security
 
@@ -310,9 +319,18 @@ leer el catálogo de un vistazo, o para nombrar una tool explícitamente.
 
 ## Ejemplos
 
-[`examples/carrito_diferencial.py`](examples/carrito_diferencial.py) construye un
-carrito de tracción diferencial completo con evasión de obstáculos, y mide si de
-verdad funciona. Mira [examples/README.md](examples/README.md).
+Dos proyectos completos, construidos contra un simulador real y medidos en vez
+de supuestos: todas las cifras que se citan en este README salieron de ahí.
+
+- [`examples/Proyecto-01-Carrito-Diferencial/`](examples/Proyecto-01-Carrito-Diferencial/)
+  — un carrito diferencial con evasión de obstáculos, y donde apareció la trampa
+  de `bullet.frictionOld`.
+- [`examples/Proyecto-02-Casa/`](examples/Proyecto-02-Casa/) — una casa que
+  verifica por BFS que se llega a todas las habitaciones, un robot construido a
+  partir de planos acotados, y teleoperación por teclado.
+
+Son Python contra `coppeliasim_zmqremoteapi_client`, no llamadas a tools: así es
+como se ve un proyecto. Mira [examples/README.md](examples/README.md).
 
 ## Cosas que ahorran horas de depuración
 

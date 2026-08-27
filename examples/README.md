@@ -1,92 +1,60 @@
 # Examples
 
-## `carrito_diferencial.py` — differential drive robot with obstacle avoidance
+Two complete projects, built against a real CoppeliaSim 4.10 and measured rather
+than assumed. Every figure quoted in the main README and in the plugin's skills
+was produced here.
 
-Builds a complete differential drive robot in an empty CoppeliaSim scene and
-verifies it works: chassis, two motorized wheels on velocity-controlled revolute
-joints, a friction-free caster, a cone-shaped proximity sensor, four walls, and
-an embedded Lua child script that reads the sensor and steers. Press Play and it
-drives itself.
+They are ordinary Python scripts that talk to CoppeliaSim through
+`coppeliasim_zmqremoteapi_client` — the same API the MCP server uses. That is
+deliberate, and it is the point: **the tools are for inspecting and verifying a
+scene; a project is written as a script.** These examples show what that looks
+like.
 
-```bash
-pip install coppeliasim-zmqremoteapi-client python-dotenv
-python carrito_diferencial.py                 # build, then run a 45 s test
-python carrito_diferencial.py --solo-construir  # build only
-```
-
-**This script talks to CoppeliaSim directly over the ZMQ remote API, not through
-the MCP server.** It is here as the reference implementation of a robot you can
-also build by asking the MCP server for it, tool call by tool call: since 0.2.0
-`crear_junta`, `crear_union_rigida`, `fijar_dinamica` and `paso_simulacion`
-cover everything this script needs, and a robot rebuilt that way travelled 98%
-of its theoretical distance. A script is still the better tool for building —
-it is versioned, re-runnable and can measure itself — while the MCP server is
-better at inspecting and driving a scene that already exists.
-
-It is also here because it documents, in code, the API facts that cost the most
-time to discover:
-
-- `sim.jointdynctrl_velocity` is `4`, and goes in the joint's `dynCtrlMode`
-  property. Without it the motor ignores target velocities.
-- A revolute joint spins about its own **+Z**. To roll a wheel toward +X, that
-  axis must lie along Y: a −90° rotation about X.
-- **Parenting two dynamic shapes does not attach them.** They stay separate
-  bodies and drift apart. A rigid link needs a joint or a force sensor — and a
-  force sensor is the only option when the two bodies need different friction
-  coefficients, since grouping forces them to share.
-- `respondableMask`: the low 8 bits govern collisions inside the same tree, the
-  high 8 bits with everything else. `0xFF00` keeps the robot's own parts from
-  colliding with each other while still colliding with the floor.
-- `computeMassAndInertia` only works on convex shapes, and returns 0 when it
-  fails rather than raising.
-- **Friction goes in `bullet.frictionOld`, not just `bullet.friction`.**
-  CoppeliaSim exposes both and the default Bullet 2.7 obeys the old one, so
-  setting only the new property does nothing — silently. A caster meant to be
-  frictionless kept dragging: 87% of the intended straight-line distance and 51%
-  of the turn rate, skid-steering instead of pivoting on the drive axle. Writing
-  both: 99% and 99%. Nothing in the scene looks wrong; only measuring finds it.
-- A proximity cone pointing horizontally sees the **floor** before it sees the
-  obstacle, and a robot that pitches nose-down under acceleration makes it
-  worse. The script prints the floor-intersection distance on every build so the
-  geometry is checked instead of assumed.
-- The robot pivots about its **driven wheel axle**, not its center, so the nose
-  sweeps a wider radius than you would guess. The avoidance distance has to
-  clear that or it grazes corners.
-
-The script does not just build the scene — it steps the simulation and measures
-whether the robot actually works: forward travel, chassis stability, sensor
-detections, and real collision checks against the obstacle and walls. A build
-that looks right but hits a wall gets reported as a failure.
-
----
-
-## `carrito_diferencial.py` (español)
-
-Construye un carrito de tracción diferencial completo en una escena vacía de
-CoppeliaSim y comprueba que funciona: chasis, dos ruedas motrices sobre juntas
-revolute en control de velocidad, una rueda loca sin fricción, un sensor de
-proximidad cónico, cuatro paredes, y un child script en Lua dentro de la escena
-que lee el sensor y decide. Le das Play y anda solo.
+## Requirements
 
 ```bash
 pip install coppeliasim-zmqremoteapi-client python-dotenv
-python carrito_diferencial.py                   # construye y prueba 45 s
-python carrito_diferencial.py --solo-construir  # solo construye
 ```
 
-**Habla con CoppeliaSim directamente por la ZMQ remote API, no a través del
-servidor MCP.** Está aquí como implementación de referencia de un robot que
-también puedes construir pidiéndoselo al MCP tool por tool: desde la 0.2.0,
-`crear_junta`, `crear_union_rigida`, `fijar_dinamica` y `paso_simulacion` cubren
-todo lo que necesita este script, y un robot rehecho así recorrió el 98% de su
-distancia teórica. Aun así, para construir sigue siendo mejor un script —queda
-versionado, se vuelve a ejecutar y se mide solo—; el MCP es mejor para
-inspeccionar y manejar una escena que ya existe.
+CoppeliaSim 4.10 must be running, with the ZMQ remote API add-on active (on by
+default, port 23000). Host and port come from a `.env` found anywhere above the
+script; without one, the defaults already work.
 
-Y está aquí porque documenta en código los detalles de la API que cuestan más
-tiempo descubrir: los mismos que lista la sección en inglés de arriba.
+## [`Proyecto-01-Carrito-Diferencial/`](Proyecto-01-Carrito-Diferencial/)
 
-El script no solo construye: corre la simulación y mide si el robot de verdad
-funciona —avance, estabilidad del chasis, detecciones, y colisiones reales
-contra el obstáculo y las paredes—. Un montaje que parece correcto pero roza una
-pared se reporta como fallo.
+A differential drive robot that spots an obstacle with a proximity sensor and
+brakes. Two stages: an exploratory script that adopts a cart assembled by hand
+through the MCP tools, and the finished one that builds everything in code —
+chassis, motorised joints, caster, sensor, enclosure and obstacle — then drives
+it for 45 seconds and reports distance travelled against theory.
+
+This project is where **`bullet.frictionOld`** was found: with the caster's
+friction written only to `bullet.friction`, which Bullet 2.7 silently ignores,
+the robot covered 87% of its straight-line distance and 51% of its turn rate.
+Writing both properties: 99% and 99%.
+
+## [`Proyecto-02-Casa/`](Proyecto-02-Casa/)
+
+A single-storey house with no roof — so the top-down view looks straight into the
+rooms — plus a mobile robot that drives through it and a keyboard teleop script.
+
+`casa.py` does not just build the floor plan: it rasterises the wall footprints,
+runs a BFS from the entrance and refuses to call the house finished if any room
+turns out to be walled off. `robot.py` builds the robot from dimensioned plans
+and then measures whether it drives straight, turns on its drive axle and holds
+its chassis height steady. `teleop.py` drives it from the terminal.
+
+Between them they are the worked answer to "how do I lay out a CoppeliaSim
+project so it stays reproducible", which is what the plugin's
+`project-structure` skill describes in the abstract.
+
+## Running them
+
+```bash
+python examples/Proyecto-02-Casa/casa.py            # build, verify, save
+python examples/Proyecto-02-Casa/casa.py --foto     # also render the floor plan
+python examples/Proyecto-02-Casa/robot.py           # needs the house first
+python examples/Proyecto-02-Casa/teleop.py          # run this in your own terminal
+```
+
+Each script cleans up after its previous run, so they are safe to re-run.

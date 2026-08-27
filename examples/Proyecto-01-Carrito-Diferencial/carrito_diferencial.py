@@ -51,9 +51,10 @@ import os
 import sys
 
 from coppeliasim_zmqremoteapi_client import RemoteAPIClient
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
-load_dotenv()  # lee un .env del directorio de trabajo, si existe
+RUTA_PROYECTO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(find_dotenv())    # opcional: sin .env valen los valores por defecto
 
 COPPELIA_HOST = os.getenv("COPPELIA_HOST", "127.0.0.1")
 COPPELIA_PUERTO = int(os.getenv("COPPELIA_PUERTO", "23000"))

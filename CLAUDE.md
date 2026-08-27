@@ -111,6 +111,27 @@ them. Two that bite hardest: Bullet 2.7 obeys `bullet.frictionOld`, not
 `bullet.friction`; and a joint stays deaf to speed orders until `dynCtrlMode`
 is set, which is a property rather than an argument of the creation call.
 
+## Examples
+
+`examples/` holds two complete projects — `Proyecto-01-Carrito-Diferencial/` and
+`Proyecto-02-Casa/` — that were built against a real simulator. They are the
+source of every measurement quoted in the README and in the skills, so treat
+them as evidence rather than decoration: changing a number in the docs means
+re-running the script that produced it.
+
+They are plain Python against `coppeliasim_zmqremoteapi_client`, never tool
+calls, which is the same point the server's `INSTRUCCIONES` makes to the model.
+
+`examples/` does not ship in the wheel (`packages = ["src/coppeliasim_mcp"]`),
+so the scene `.ttt` files cost repository size but nothing to PyPI users. They
+are regenerable output of the scripts — avoid re-committing them for cosmetic
+scene edits, since git stores binaries whole and every save adds a full copy to
+the history.
+
+Each script finds its `.env` with `find_dotenv()`, searching upward, and falls
+back to working defaults when there is none — so a fresh clone runs with no
+configuration.
+
 ## Tool names
 
 Spanish by default. `COPPELIA_IDIOMAS` registers English and Portuguese aliases
